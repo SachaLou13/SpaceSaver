@@ -1,46 +1,56 @@
-# SpaceSaver
+# SpaceSaver · V2
 
-Application Android native **Kotlin + Jetpack Compose**, interface française. Première version fonctionnelle 0.1.0, Android 8.0 minimum.
+**Stop paying to store digital junk.**
 
-## Fonctions
+Application Android native Kotlin / Jetpack Compose, interface française. Version de test **0.2.0**, Android 8.0 minimum. Identifier les données inutiles avant de payer davantage de stockage.
 
-- Espace libre/utilisé du stockage interne.
-- Choix explicite d’un dossier via le sélecteur Android, analyse récursive en arrière-plan et annulation.
-- Fichiers classés du plus volumineux au plus petit ; filtres Photos, Vidéos, Audio, Documents, Autres et recherche.
-- Ouverture des fichiers avec les applications du téléphone.
-- Sélection manuelle et suppression définitive avec confirmation, compte rendu des refus et gestion lecture seule.
-- Aucun compte, aucune publicité, aucune permission Internet. SpaceSaver ne transfère pas vos fichiers.
+## Gmail
 
-## Télécharger l’APK
+- Autorisation Google native, compte utilisé visible avant toute opération.
+- Promotions et/ou Réseaux sociaux de plus de **1 à 30 ans**, au choix.
+- Tous les mails de plus de **1 à 30 ans**, avec un âge indépendant.
+- Combinaison des règles par **OU** : promotions/réseaux de plus de 2 ans, ou tout mail de plus de 10 ans, par exemple.
+- Favoris et messages importants conservés par défaut ; option pour préserver les non lus. Messages envoyés, brouillons, spams et mails déjà à la corbeille toujours exclus.
+- Aperçu par pages de 100 candidats, au maximum 500 messages examinés par analyse. Objet, expéditeur, date et taille estimée. Sélection vide au départ.
+- Confirmation du compte et de la sélection avant mise à la corbeille. Règles revérifiées sur les métadonnées actuelles de chaque message. Aucun traitement de conversations entières.
+- Arrêt entre deux messages et bilan des opérations partielles. Après nettoyage, relancer l’analyse pour les lots suivants.
 
-1. Ouvrir **Actions → Android APK** dans ce dépôt.
-2. Ouvrir la dernière exécution verte de la branche `main`.
-3. Dans **Artifacts**, télécharger **SpaceSaver-APK** (connexion GitHub nécessaire).
-4. Extraire le ZIP, transférer `SpaceSaver-0.1.0-debug.apk` sur Android et ouvrir le fichier.
-5. Autoriser, si Android le demande, l’installation depuis cette source.
+**L’API Gmail et le client OAuth Android doivent être configurés dans ton projet Google Cloud avant la première connexion.** Voir [la procédure](docs/GOOGLE_SETUP.md). Aucun secret OAuth ne doit être ajouté au code.
 
-Le workflow compile l’application, lance les tests unitaires et Android Lint, puis conserve l’APK 30 jours. Il se lance à chaque push sur main ou manuellement via Run workflow. L’APK est signé automatiquement pour les tests ; ce n’est pas une version Play Store. La clé debug peut changer entre compilations : si Android refuse une mise à jour, désinstaller l’ancienne version avant d’installer la nouvelle. Les fichiers personnels ne sont pas effacés par la désinstallation de SpaceSaver.
+La taille affichée estime les messages chargés : ce n’est ni le quota Google global ni un gain confirmé. Les mails dans la corbeille comptent toujours dans le stockage. La V2 ne vide pas automatiquement la corbeille. Restauration et suppression définitive se font dans Gmail.
 
-## Développer entièrement dans le cloud
+## Téléphone
 
-Le dossier `.devcontainer` configure Java 17, Gradle 8.11.1 et le SDK Android 35. Dans le Codespace existant, récupérer main, puis **Codespaces: Rebuild Container**. La configuration accepte les licences du SDK Android pour installer les outils de compilation. Rien n’est installé sur le PC.
+La V1 reste disponible dans l’onglet Téléphone : espace interne libre/utilisé, analyse du dossier choisi, classement par taille, catégories, recherche, ouverture et suppression définitive avec confirmation. Analyse locale limitée à 50 000 fichiers / 10 000 dossiers. Les restrictions du sélecteur Android restent applicables.
 
-Le script de préparation génère le wrapper Gradle dans le Codespace. Ensuite :
+## Télécharger et installer
+
+1. **Actions → Android APK → dernière exécution verte de main**.
+2. Télécharger l’artifact **SpaceSaver-APK** et extraire le ZIP.
+3. Installer `SpaceSaver-0.2.0-debug.apk` sur Android. Le ZIP inclut l’empreinte publique du certificat dans `Google-OAuth-certificate.txt` pour Google Cloud.
+
+Cette version utilise une clé debug générée par le runner. Elle peut différer de la V1 ou d’une prochaine compilation : Android peut demander de désinstaller l’ancienne version et le client OAuth doit correspondre au SHA-1 du nouvel APK. **Signature de test uniquement.** Une clé de distribution stable devra être configurée dans les secrets GitHub avant diffusion durable. Aucune clé privée de signature n’est publiée dans les artifacts, les logs ou le dépôt.
+
+APK conservés 30 jours. Workflow lancé à chaque push sur main, sur PR ou manuellement. Compilation, tests unitaires et Android Lint précèdent la mise à disposition de l’APK.
+
+## Développement cloud
+
+`.devcontainer` installe Java 17, Gradle 8.11.1 et SDK Android 35. Dans le Codespace existant, récupérer main et lancer **Codespaces: Rebuild Container**. La préparation accepte les licences Android et génère le wrapper Gradle.
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
-APK local au Codespace : `app/build/outputs/apk/debug/app-debug.apk`.
+## Données et accès
 
-## Périmètre et limites de cette version
+Connexion directe à Google par HTTPS. Jeton et aperçu Gmail restent en mémoire ; aucun token, objet, expéditeur ou corps de mail n’est écrit dans les logs ou envoyé à un serveur SpaceSaver. Corps et pièces jointes non téléchargés. Fermer la session locale efface l’aperçu et le jeton de l’app ; la révocation Google s’effectue dans [les connexions du compte](https://myaccount.google.com/connections). Google Play services peut conserver les autorisations Google.
 
-Le sélecteur Android donne accès uniquement au dossier choisi. Sur Android récent, la racine du stockage, la racine Download et Android/data peuvent être bloquées : choisir un sous-dossier, DCIM ou Pictures. L’espace interne affiché et le volume du dossier analysé sont deux mesures distinctes, notamment pour une carte SD ou un fournisseur cloud.
+Le scope `gmail.modify` permet de lire les métadonnées et de mettre les messages à la corbeille. Il accorde des capacités plus larges que celles utilisées par l’app ; SpaceSaver n’implémente ni envoi d’e-mails, ni suppression définitive Gmail. Ce scope restreint est soumis aux exigences Google avant une diffusion publique.
 
-L’analyse est limitée à 50 000 fichiers / 10 000 dossiers pour protéger la mémoire ; un message signale un résultat partiel ou des dossiers inaccessibles. Une taille inconnue est affichée à 0 o. Un fournisseur installé sur le téléphone peut proposer un dossier distant et utiliser sa propre connexion réseau. Supprimer un fichier synchronisé peut aussi le supprimer du cloud. Aucune suppression automatique, aucune corbeille SpaceSaver.
+## Vérification
 
-Pas encore de détection de doublons par contenu, de connecteur Gmail/OneDrive/iCloud, de nettoyage des caches d’autres applications ni de publication Play Store.
+Les tests couvrent les seuils d’âge, les années bissextiles, le OU entre règles, les exclusions, les IDs sélectionnés, un changement de compte, un message devenu favori, les interruptions et les résultats partiels. Android Lint et la compilation ne remplacent pas une vérification réelle avec un compte de test.
 
-## Vérification sur téléphone
+Sur téléphone : annuler l’autorisation puis connecter un compte de test ; vérifier âges et combinaisons ; changer une règle et vérifier que l’ancien aperçu disparaît ; charger plusieurs pages ; annuler une confirmation ; déplacer quelques messages sacrifiables seulement ; vérifier leur présence dans la corbeille et que les autres restent en place ; restaurer depuis Gmail ; tester une coupure réseau et la rotation de l’écran. **Aucun test automatisé ne touche une boîte Gmail réelle.**
 
-Utiliser d’abord un dossier de test contenant une photo, une vidéo, un PDF et deux fichiers sacrifiables. Vérifier le classement par taille, les filtres et la recherche. Ouvrir un fichier ; sélectionner un fichier, annuler la confirmation et vérifier sa présence ; confirmer ensuite sa suppression et vérifier qu’un fichier non sélectionné reste présent. Tourner l’écran pendant une analyse ; annuler et relancer. Vérifier le traitement d’un dossier vide et d’un accès révoqué. La compilation CI ne remplace pas ce test sur appareil.
+Google Drive, Google Photos, OneDrive et iCloud ne sont pas intégrés dans cette V2.

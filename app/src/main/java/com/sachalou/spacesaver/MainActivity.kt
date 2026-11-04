@@ -36,7 +36,25 @@ class MainActivity : ComponentActivity() {
                 primary = Color(0xFF87E8C1), onPrimary = Color(0xFF003828),
                 background = Color(0xFF0C151E), surface = Color(0xFF142330),
                 surfaceVariant = Color(0xFF203440), secondary = Color(0xFFA8C9FF)
-            )) { SpaceSaver() }
+            )) { SpaceSaverRoot() }
+        }
+    }
+}
+
+@Composable
+private fun SpaceSaverRoot() {
+    var tab by rememberSaveable { mutableStateOf(0) }
+    val gmail: GmailModel = viewModel()
+    val local: StorageModel = viewModel()
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("Gmail") }, enabled = !gmail.busy && !local.busy)
+                FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Téléphone") }, enabled = !gmail.busy && !local.busy)
+            }
+            Box(Modifier.weight(1f)) {
+                if (tab == 0) GmailScreen(gmail) else SpaceSaver(local)
+            }
         }
     }
 }
@@ -57,6 +75,7 @@ private fun SpaceSaver(model: StorageModel = viewModel()) {
     }
     val selectedFiles = model.files.filter { it.uri in model.selected }
     Scaffold(containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (selectedFiles.isNotEmpty()) Surface(tonalElevation = 6.dp) {
                 Column(Modifier.navigationBarsPadding().padding(16.dp)) {
@@ -77,7 +96,7 @@ private fun SpaceSaver(model: StorageModel = viewModel()) {
                 Text("S P A C E S A V E R", color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(14.dp))
-                Text("Fais de la place.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                Text("Stop paying to store digital junk.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 Text("Tes fichiers. Ton espace. Ton choix.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {

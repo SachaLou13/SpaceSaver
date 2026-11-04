@@ -10,8 +10,8 @@ android {
         applicationId = "com.sachalou.spacesaver"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -30,5 +30,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
     testImplementation("junit:junit:4.13.2")
 }
