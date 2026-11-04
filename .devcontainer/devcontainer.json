@@ -1,0 +1,14 @@
+{
+  "name": "SpaceSaver Android",
+  "image": "mcr.microsoft.com/devcontainers/java:1-17-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17",
+      "installGradle": true,
+      "gradleVersion": "8.11.1"
+    }
+  },
+  "containerEnv": { "ANDROID_HOME": "/home/vscode/android-sdk", "ANDROID_SDK_ROOT": "/home/vscode/android-sdk" },
+  "postCreateCommand": "bash scripts/setup-android.sh",
+  "customizations": { "vscode": { "extensions": ["fwcd.kotlin", "vscjava.vscode-gradle"] } }
+}
