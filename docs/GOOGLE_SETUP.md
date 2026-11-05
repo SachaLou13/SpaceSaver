@@ -26,7 +26,7 @@ Dans **Clients → Créer un client**, choisir **Android**.
 | --- | --- |
 | Nom | SpaceSaver Android test |
 | Nom du package | `com.sachalou.spacesaver` |
-| Empreinte SHA-1 | Valeur `SHA1` dans `Google-OAuth-certificate.txt`, livré dans le même ZIP que l’APK |
+| Empreinte SHA-1 | Valeur `Signer #1 certificate SHA-1 digest` dans `Google-OAuth-certificate.txt`, livré dans le même ZIP que l’APK |
 
 L’empreinte doit correspondre exactement à l’APK installé. Ce fichier contient uniquement le certificat public et ses empreintes, jamais la clé privée.
 

@@ -36,7 +36,7 @@ jobs:
         run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
       - name: Export OAuth certificate fingerprint
         run: |
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android > Google-OAuth-certificate.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk > Google-OAuth-certificate.txt
           cat Google-OAuth-certificate.txt
       - name: Name APK
         run: cp app/build/outputs/apk/debug/app-debug.apk SpaceSaver-0.2.0-debug.apk
