@@ -68,7 +68,7 @@ class GmailModel : ViewModel() {
     }
     fun scan(append: Boolean = false) {
         val client = gateway ?: return
-        if (busy || !rules.valid || append && (!more || inspected >= 500)) return
+        if (busy || !rules.valid || append && (!more || rows.size >= 500)) return
         if (!append) { clearResults(); frozen = rules.freeze() }
         val searchRules = frozen ?: return
         val token = if (append) pageToken else null
@@ -76,8 +76,7 @@ class GmailModel : ViewModel() {
         job = viewModelScope.launch {
             try {
                 val page = client.list(searchRules.query(), token)
-                val remaining = (500 - inspected).coerceAtLeast(0)
-                val ids = page.ids.distinct().filterNot { id -> rows.any { it.id == id } }.take(remaining)
+                val ids = page.ids.distinct().filterNot { id -> rows.any { it.id == id } }
                 for (chunk in ids.chunked(5)) {
                     val details = coroutineScope {
                         chunk.map { id -> async {
@@ -87,14 +86,14 @@ class GmailModel : ViewModel() {
                     }
                     inspected += chunk.size
                     rows = (rows + details.filterNotNull().filter(searchRules::matches)).distinctBy { it.id }
-                        .sortedBy { it.dateMillis }
+                        .sortedByDescending { it.sizeEstimate }.take(500)
                     progress = "$inspected messages examinés…"
                 }
                 pageToken = page.nextPage
-                more = page.nextPage != null
+                more = page.nextPage != null || rows.size >= 500
                 hasResults = true
                 notice = when {
-                    inspected >= 500 && more -> "Aperçu limité à 500 messages examinés. Après un nettoyage, relance l’analyse pour continuer."
+                    rows.size >= 500 && more -> "Aperçu limité à 500 messages correspondants. Après un nettoyage, relance l’analyse pour continuer."
                     more -> "D’autres résultats sont disponibles. Charge la suite pour les examiner."
                     rows.isEmpty() -> "Aucun message ne correspond aux règles et aux exclusions."
                     else -> "Analyse terminée. Rien n’a été déplacé."

@@ -43,7 +43,7 @@ class GmailHttpGateway(private val accessToken: String) : GmailGateway {
             result.optString("nextPageToken").takeIf { it.isNotBlank() }, result.optInt("resultSizeEstimate"))
     }
     override suspend fun message(id: String): GmailMessage {
-        val result = request("messages/${encode(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From" +
+        val result = request("messages/${encode(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=List-Id&metadataHeaders=List-Unsubscribe" +
             "&fields=id,internalDate,sizeEstimate,labelIds,payload/headers")
         val headers = result.optJSONObject("payload")?.optJSONArray("headers")
         fun header(name: String): String = (0 until (headers?.length() ?: 0))
@@ -51,7 +51,8 @@ class GmailHttpGateway(private val accessToken: String) : GmailGateway {
         val labels = result.optJSONArray("labelIds")
         return GmailMessage(result.getString("id"), header("Subject").ifBlank { "(Sans objet)" },
             header("From"), result.optLong("internalDate"), result.optLong("sizeEstimate").coerceAtLeast(0),
-            (0 until (labels?.length() ?: 0)).map { labels!!.getString(it) }.toSet())
+            (0 until (labels?.length() ?: 0)).map { labels!!.getString(it) }.toSet(),
+            hasSubscriptionHint(header("List-Id"), header("List-Unsubscribe")))
     }
     override suspend fun trash(id: String) {
         val result = request("messages/${encode(id)}/trash?fields=id,labelIds", "POST")

@@ -3,42 +3,50 @@ package com.sachalou.spacesaver
 import java.time.LocalDate
 import java.time.ZoneId
 
-data class GmailRules(
-    val categoriesEnabled: Boolean = true,
-    val promotions: Boolean = true,
-    val social: Boolean = true,
-    val categoryYears: Int = 2,
-    val allEnabled: Boolean = false,
-    val allYears: Int = 10,
-    val protectStarred: Boolean = true,
-    val protectImportant: Boolean = true,
-    val protectUnread: Boolean = false
-) {
-    val valid: Boolean get() = (categoriesEnabled && (promotions || social) || allEnabled) &&
-        categoryYears in 1..30 && allYears in 1..30
-
-    fun freeze(today: LocalDate = LocalDate.now(), zone: ZoneId = ZoneId.systemDefault()): FrozenGmailRules {
-        require(valid) { "Choisis au moins une règle et un âge de 1 à 30 ans." }
-        return FrozenGmailRules(this,
-            today.minusYears(categoryYears.toLong()).atStartOfDay(zone).toInstant().toEpochMilli(),
-            today.minusYears(allYears.toLong()).atStartOfDay(zone).toInstant().toEpochMilli())
+enum class AgeUnit { MONTHS, YEARS }
+data class MailAge(val amount: Int = 2, val unit: AgeUnit = AgeUnit.YEARS) {
+    val valid get() = amount in 1..(if (unit == AgeUnit.MONTHS) 360 else 30)
+    fun cutoff(today: LocalDate, zone: ZoneId): Long {
+        require(valid)
+        val date = if (unit == AgeUnit.MONTHS) today.minusMonths(amount.toLong()) else today.minusYears(amount.toLong())
+        return date.atStartOfDay(zone).toInstant().toEpochMilli()
     }
 }
-
+data class GmailRules(
+    val promotions: Boolean = true, val promotionsAge: MailAge = MailAge(6, AgeUnit.MONTHS),
+    val social: Boolean = true, val socialAge: MailAge = MailAge(1),
+    val notifications: Boolean = true, val notificationsAge: MailAge = MailAge(2),
+    val newsletters: Boolean = false, val newslettersAge: MailAge = MailAge(6, AgeUnit.MONTHS),
+    val allEnabled: Boolean = false, val allAge: MailAge = MailAge(10),
+    val largeEnabled: Boolean = false, val largeAge: MailAge = MailAge(2), val largeMegabytes: Int = 10,
+    val protectStarred: Boolean = true, val protectImportant: Boolean = true, val protectUnread: Boolean = false
+) {
+    val valid get() = (promotions || social || notifications || newsletters || allEnabled || largeEnabled) &&
+        listOf(promotionsAge, socialAge, notificationsAge, newslettersAge, allAge, largeAge).all { it.valid } && largeMegabytes in 1..100
+    fun freeze(today: LocalDate = LocalDate.now(), zone: ZoneId = ZoneId.systemDefault()): FrozenGmailRules {
+        require(valid)
+        return FrozenGmailRules(this, promotionsAge.cutoff(today, zone), socialAge.cutoff(today, zone),
+            notificationsAge.cutoff(today, zone), newslettersAge.cutoff(today, zone), allAge.cutoff(today, zone), largeAge.cutoff(today, zone))
+    }
+}
 data class GmailMessage(val id: String, val subject: String, val sender: String,
-    val dateMillis: Long, val sizeEstimate: Long, val labels: Set<String>)
+    val dateMillis: Long, val sizeEstimate: Long, val labels: Set<String>, val subscriptionHint: Boolean = false)
 
-data class FrozenGmailRules(val rules: GmailRules, val categoryBefore: Long, val allBefore: Long) {
+// Presence of standard mailing-list headers is indicative, not a guarantee of marketing content.
+fun hasSubscriptionHint(listId: String, unsubscribe: String): Boolean = listId.isNotBlank() || unsubscribe.isNotBlank()
+
+data class FrozenGmailRules(val rules: GmailRules, val promotionsBefore: Long, val socialBefore: Long,
+    val notificationsBefore: Long, val newslettersBefore: Long, val allBefore: Long, val largeBefore: Long) {
     fun query(): String {
-        val branches = mutableListOf<String>()
-        if (rules.categoriesEnabled && (rules.promotions || rules.social)) {
-            val categories = buildList {
-                if (rules.promotions) add("category:promotions")
-                if (rules.social) add("category:social")
-            }
-            branches.add("({${categories.joinToString(" ")}} before:${categoryBefore / 1000})")
+        val branches = buildList {
+            if (rules.promotions) add("(category:promotions before:${promotionsBefore / 1000})")
+            if (rules.social) add("(category:social before:${socialBefore / 1000})")
+            if (rules.notifications) add("(category:updates before:${notificationsBefore / 1000})")
+            // Gmail has no documented arbitrary-header search: inspect metadata locally instead.
+            if (rules.newsletters) add("(before:${newslettersBefore / 1000})")
+            if (rules.allEnabled) add("(before:${allBefore / 1000})")
+            if (rules.largeEnabled) add("(larger:${rules.largeMegabytes.toLong() * 1_000_000} before:${largeBefore / 1000})")
         }
-        if (rules.allEnabled) branches.add("(before:${allBefore / 1000})")
         require(branches.isNotEmpty())
         return buildList {
             add("(${branches.joinToString(" OR ")})")
@@ -48,16 +56,17 @@ data class FrozenGmailRules(val rules: GmailRules, val categoryBefore: Long, val
             if (rules.protectUnread) add("-is:unread")
         }.joinToString(" ")
     }
-
-    // Rechecked against fresh metadata immediately before each move to Trash.
     fun matches(mail: GmailMessage): Boolean {
         if (mail.dateMillis <= 0 || mail.labels.any { it in setOf("TRASH", "SPAM", "DRAFT", "SENT") }) return false
         if (rules.protectStarred && "STARRED" in mail.labels) return false
         if (rules.protectImportant && "IMPORTANT" in mail.labels) return false
         if (rules.protectUnread && "UNREAD" in mail.labels) return false
-        val categoryMatch = rules.categoriesEnabled && mail.dateMillis < categoryBefore &&
-            (rules.promotions && "CATEGORY_PROMOTIONS" in mail.labels || rules.social && "CATEGORY_SOCIAL" in mail.labels)
-        return categoryMatch || rules.allEnabled && mail.dateMillis < allBefore
+        return rules.promotions && "CATEGORY_PROMOTIONS" in mail.labels && mail.dateMillis < promotionsBefore ||
+            rules.social && "CATEGORY_SOCIAL" in mail.labels && mail.dateMillis < socialBefore ||
+            rules.notifications && "CATEGORY_UPDATES" in mail.labels && mail.dateMillis < notificationsBefore ||
+            rules.newsletters && mail.subscriptionHint && mail.dateMillis < newslettersBefore ||
+            rules.allEnabled && mail.dateMillis < allBefore ||
+            rules.largeEnabled && mail.sizeEstimate > rules.largeMegabytes.toLong() * 1_000_000 && mail.dateMillis < largeBefore
     }
 }
 

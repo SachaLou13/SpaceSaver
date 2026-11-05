@@ -36,6 +36,7 @@ fun GmailScreen(model: GmailModel) {
     val client = remember(context) { Identity.getAuthorizationClient(context) }
     var authorizing by rememberSaveable { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
+    var advanced by rememberSaveable { mutableStateOf(false) }
     val size: (Long) -> String = { Formatter.formatFileSize(context, it) }
     val chosen = model.rows.filter { it.id in model.selected }
     val enabled = !model.busy && !authorizing
@@ -63,7 +64,8 @@ fun GmailScreen(model: GmailModel) {
     }
     fun connect() {
         authorizing = true
-        val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(GMAIL_SCOPE))).build()
+        val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(GMAIL_SCOPE)))
+            .setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT).build()
         client.authorize(request).addOnSuccessListener { result ->
             try {
                 if (result.hasResolution()) {
@@ -114,6 +116,7 @@ fun GmailScreen(model: GmailModel) {
                         } else {
                             Text(model.account!!, style = MaterialTheme.typography.titleMedium)
                             Text("Connexion directe à Google · Aucun serveur SpaceSaver", style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = ::connect, enabled = enabled) { Text("Changer de compte") }
                             TextButton(onClick = model::disconnect, enabled = enabled) { Text("Fermer la session") }
                         }
                         TextButton(onClick = { openLink("https://myaccount.google.com/connections") }, enabled = enabled) { Text("Gérer les accès Google") }
@@ -122,45 +125,56 @@ fun GmailScreen(model: GmailModel) {
                 }
             }
             item {
-                Text("Tes règles de nettoyage", style = MaterialTheme.typography.titleLarge)
-                Text("Active une règle ou combine les deux : un mail doit correspondre à au moins une règle.", style = MaterialTheme.typography.bodySmall)
+                Text("Que veux-tu nettoyer ?", style = MaterialTheme.typography.titleLarge)
+                Text("Choisis les catégories et leur ancienneté. Tu vérifies les mails avant de confirmer.", style = MaterialTheme.typography.bodySmall)
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        RuleSwitch("Promotions / Réseaux sociaux", rules.categoriesEnabled, enabled) {
-                            model.changeRules(rules.copy(categoriesEnabled = it))
+                        RuleSwitch("Promotions", rules.promotions, enabled) { model.changeRules(rules.copy(promotions = it)) }
+                        if (rules.promotions) AgePicker(rules.promotionsAge, enabled) { model.changeRules(rules.copy(promotionsAge = it)) }
+                        RuleSwitch("Réseaux sociaux", rules.social, enabled) { model.changeRules(rules.copy(social = it)) }
+                        if (rules.social) AgePicker(rules.socialAge, enabled) { model.changeRules(rules.copy(socialAge = it)) }
+                        RuleSwitch("Notifications", rules.notifications, enabled) { model.changeRules(rules.copy(notifications = it)) }
+                        if (rules.notifications) {
+                            AgePicker(rules.notificationsAge, enabled) { model.changeRules(rules.copy(notificationsAge = it)) }
+                            Text("Peut inclure des factures et confirmations de commande.", style = MaterialTheme.typography.bodySmall)
                         }
-                        if (rules.categoriesEnabled) {
-                            RuleCheck("Promotions", rules.promotions, enabled) { model.changeRules(rules.copy(promotions = it)) }
-                            RuleCheck("Réseaux sociaux", rules.social, enabled) { model.changeRules(rules.copy(social = it)) }
-                            AgePicker(rules.categoryYears, enabled) { model.changeRules(rules.copy(categoryYears = it)) }
+                        RuleSwitch("Newsletters / abonnements", rules.newsletters, enabled) { model.changeRules(rules.copy(newsletters = it)) }
+                        if (rules.newsletters) {
+                            AgePicker(rules.newslettersAge, enabled) { model.changeRules(rules.copy(newslettersAge = it)) }
+                            Text("Détection indicative des listes de diffusion. L’analyse peut être plus longue. Aucun désabonnement automatique.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
             item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        RuleSwitch("Tous les anciens mails", rules.allEnabled, enabled) { model.changeRules(rules.copy(allEnabled = it)) }
-                        if (rules.allEnabled) {
-                            Text("Toutes les catégories, avec les exclusions ci-dessous.", style = MaterialTheme.typography.bodySmall)
-                            AgePicker(rules.allYears, enabled) { model.changeRules(rules.copy(allYears = it)) }
+                TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Masquer les options" else "Plus d’options") }
+                if (advanced) {
+                    RuleSwitch("Tous les anciens mails", rules.allEnabled, enabled) { model.changeRules(rules.copy(allEnabled = it)) }
+                    if (rules.allEnabled) AgePicker(rules.allAge, enabled) { model.changeRules(rules.copy(allAge = it)) }
+                    RuleSwitch("Mails volumineux", rules.largeEnabled, enabled) { model.changeRules(rules.copy(largeEnabled = it)) }
+                    if (rules.largeEnabled) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { model.changeRules(rules.copy(largeMegabytes = rules.largeMegabytes - 1)) }, enabled = enabled && rules.largeMegabytes > 1) { Text("−") }
+                            Text("Plus de ${rules.largeMegabytes} Mo", Modifier.padding(top = 14.dp))
+                            OutlinedButton(onClick = { model.changeRules(rules.copy(largeMegabytes = rules.largeMegabytes + 1)) }, enabled = enabled && rules.largeMegabytes < 100) { Text("+") }
                         }
+                        AgePicker(rules.largeAge, enabled) { model.changeRules(rules.copy(largeAge = it)) }
                     }
+                    Text("Un mail doit correspondre à au moins une des règles activées.", style = MaterialTheme.typography.bodySmall)
+                    Text("À conserver", style = MaterialTheme.typography.titleMedium)
+                    RuleCheck("Favoris (étoile)", rules.protectStarred, enabled) { model.changeRules(rules.copy(protectStarred = it)) }
+                    RuleCheck("Mails marqués importants", rules.protectImportant, enabled) { model.changeRules(rules.copy(protectImportant = it)) }
+                    RuleCheck("Mails non lus", rules.protectUnread, enabled) { model.changeRules(rules.copy(protectUnread = it)) }
                 }
-            }
-            item {
-                Text("À conserver", style = MaterialTheme.typography.titleMedium)
-                RuleCheck("Favoris (étoile)", rules.protectStarred, enabled) { model.changeRules(rules.copy(protectStarred = it)) }
-                RuleCheck("Mails marqués importants", rules.protectImportant, enabled) { model.changeRules(rules.copy(protectImportant = it)) }
-                RuleCheck("Mails non lus", rules.protectUnread, enabled) { model.changeRules(rules.copy(protectUnread = it)) }
-                Text("Les messages envoyés, brouillons, spams et mails déjà à la corbeille sont toujours exclus.", style = MaterialTheme.typography.bodySmall)
+                Text("Favoris : ${if (rules.protectStarred) "conservés" else "inclus"} · Importants : ${if (rules.protectImportant) "conservés" else "inclus"}", style = MaterialTheme.typography.bodySmall)
+                Text("Envoyés, brouillons, spams et corbeille toujours exclus.", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = { model.scan() }, enabled = enabled && model.account != null && rules.valid, modifier = Modifier.fillMaxWidth()) {
                     Text("Analyser sans rien supprimer")
                 }
-                if (!rules.valid) Text("Active au moins une règle et une catégorie si nécessaire.", color = MaterialTheme.colorScheme.error)
+                if (!rules.valid) Text("Active au moins une règle.", color = MaterialTheme.colorScheme.error)
             }
             if (model.busy || authorizing) item {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -195,18 +209,20 @@ fun GmailScreen(model: GmailModel) {
                                 Text(when {
                                     "CATEGORY_PROMOTIONS" in mail.labels -> "Promotions"
                                     "CATEGORY_SOCIAL" in mail.labels -> "Réseaux sociaux"
+                                    "CATEGORY_UPDATES" in mail.labels -> "Notifications"
+                                    mail.subscriptionHint -> "Liste de diffusion détectée"
                                     else -> "Autre catégorie"
                                 }, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
                 }
-                if (model.more && model.inspected < 500) item {
+                if (model.more && model.rows.size < 500) item {
                     OutlinedButton(onClick = { model.scan(append = true) }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("Examiner les 100 suivants") }
                 }
             }
             item {
-                Text("V2 · Gmail + téléphone. Google Drive arrivera dans une prochaine version.", style = MaterialTheme.typography.bodySmall,
+                Text("V3 · Gmail + téléphone. Google Drive arrivera dans une prochaine version.", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.navigationBarsPadding())
             }
@@ -235,11 +251,15 @@ private fun RuleCheck(label: String, checked: Boolean, enabled: Boolean, onChang
     }
 }
 @Composable
-private fun AgePicker(years: Int, enabled: Boolean, onChange: (Int) -> Unit) {
+private fun AgePicker(age: MailAge, enabled: Boolean, onChange: (MailAge) -> Unit) {
     Text("Plus anciens que", style = MaterialTheme.typography.bodySmall)
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = { onChange(years - 1) }, enabled = enabled && years > 1) { Text("−", style = MaterialTheme.typography.titleLarge) }
-        Text("$years an${if (years > 1) "s" else ""}", Modifier.padding(top = 14.dp), fontWeight = FontWeight.Bold)
-        OutlinedButton(onClick = { onChange(years + 1) }, enabled = enabled && years < 30) { Text("+", style = MaterialTheme.typography.titleLarge) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { onChange(age.copy(amount = age.amount - 1)) }, enabled = enabled && age.amount > 1) { Text("−") }
+        Text("${age.amount}", Modifier.padding(top = 14.dp), fontWeight = FontWeight.Bold)
+        OutlinedButton(onClick = { onChange(age.copy(amount = age.amount + 1)) }, enabled = enabled && age.amount < if (age.unit == AgeUnit.MONTHS) 360 else 30) { Text("+") }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(selected = age.unit == AgeUnit.MONTHS, onClick = { onChange(age.copy(unit = AgeUnit.MONTHS)) }, enabled = enabled, label = { Text("Mois") })
+        FilterChip(selected = age.unit == AgeUnit.YEARS, onClick = { onChange(age.copy(amount = age.amount.coerceAtMost(30), unit = AgeUnit.YEARS)) }, enabled = enabled, label = { Text("Ans") })
     }
 }

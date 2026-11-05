@@ -1,4 +1,4 @@
-# Activer Gmail dans SpaceSaver V2
+# Activer Gmail dans SpaceSaver V3
 
 La connexion réelle nécessite un projet Google Cloud appartenant au développeur. L’APK seul ne peut pas créer le consentement Google à ta place. Commencer avec un compte personnel de test et quelques messages sacrifiables.
 
@@ -30,7 +30,7 @@ Dans **Clients → Créer un client**, choisir **Android**.
 
 L’empreinte doit correspondre exactement à l’APK installé. Ce fichier contient uniquement le certificat public et ses empreintes, jamais la clé privée.
 
-Cette V2 utilise directement `AuthorizationClient`, sans serveur ni demande d’accès hors ligne : aucun client secret ni fichier `google-services.json` n’est à intégrer dans l’APK. Une signature différente exige l’enregistrement du nouveau SHA-1. Pour une diffusion durable, configurer une clé de signature stable dans les secrets de CI avant d’enregistrer le client définitif.
+Cette V3 utilise directement `AuthorizationClient`, sans serveur ni demande d’accès hors ligne : aucun client secret ni fichier `google-services.json` n’est à intégrer dans l’APK. Une signature différente exige l’enregistrement du nouveau SHA-1. Pour une diffusion durable, configurer une clé de signature stable dans les secrets de CI avant d’enregistrer le client définitif.
 
 ## 4. Essai sur téléphone
 

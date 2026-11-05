@@ -17,12 +17,12 @@ class GmailRulesTest {
         assertTrue(frozen.matches(mail()))
         assertTrue(frozen.matches(mail(labels = setOf("CATEGORY_SOCIAL"))))
         assertFalse(frozen.matches(mail(labels = setOf("CATEGORY_PERSONAL"))))
-        assertFalse(frozen.matches(mail(date = "2025-01-01")))
-        assertFalse(frozen.matches(mail(date = "2024-11-04")))
-        assertTrue(frozen.matches(mail(date = "2024-11-03")))
+        assertFalse(frozen.matches(mail(date = "2026-10-01")))
+        assertFalse(frozen.matches(mail(date = "2026-05-04")))
+        assertTrue(frozen.matches(mail(date = "2026-05-03")))
     }
     @Test fun combinedRulesUseUnionWithIndependentAges() {
-        val frozen = GmailRules(allEnabled = true, allYears = 10).freeze(today, ZoneOffset.UTC)
+        val frozen = GmailRules(allEnabled = true, allAge = MailAge(10)).freeze(today, ZoneOffset.UTC)
         assertTrue(frozen.matches(mail(date = "2023-01-01")))
         assertTrue(frozen.matches(mail(date = "2010-01-01", labels = emptySet())))
         assertFalse(frozen.matches(mail(date = "2020-01-01", labels = emptySet())))
@@ -31,7 +31,7 @@ class GmailRulesTest {
         assertTrue(frozen.query().contains("before:${millis("2016-11-04") / 1000}"))
     }
     @Test fun allMailModeDoesNotRequireCategory() {
-        val frozen = GmailRules(categoriesEnabled = false, allEnabled = true).freeze(today, ZoneOffset.UTC)
+        val frozen = GmailRules(promotions = false, social = false, notifications = false, allEnabled = true).freeze(today, ZoneOffset.UTC)
         assertTrue(frozen.matches(mail(date = "2010-01-01", labels = emptySet())))
         assertFalse(frozen.query().contains("category:"))
     }
@@ -44,14 +44,39 @@ class GmailRulesTest {
             .matches(mail(labels = setOf("CATEGORY_PROMOTIONS", "STARRED"))))
     }
     @Test fun invalidRulesCannotBecomeQueries() {
-        assertFalse(GmailRules(categoriesEnabled = false).valid)
-        assertFalse(GmailRules(promotions = false, social = false).valid)
-        assertFalse(GmailRules(categoryYears = 0).valid)
-        assertFalse(GmailRules(allYears = 31).valid)
+        assertFalse(GmailRules(promotions = false, social = false, notifications = false).valid)
+        assertFalse(GmailRules(promotions = false, social = false, notifications = false).valid)
+        assertFalse(GmailRules(promotionsAge = MailAge(0)).valid)
+        assertFalse(GmailRules(allAge = MailAge(31)).valid)
     }
     @Test fun leapYearUsesCalendarYears() {
-        val frozen = GmailRules(categoryYears = 1).freeze(LocalDate.of(2024, 2, 29), ZoneOffset.UTC)
-        assertEquals(millis("2023-02-28"), frozen.categoryBefore)
+        val frozen = GmailRules(promotionsAge = MailAge(1)).freeze(LocalDate.of(2024, 2, 29), ZoneOffset.UTC)
+        assertEquals(millis("2023-02-28"), frozen.promotionsBefore)
+    }
+    @Test fun categoryAgesAreIndependent() {
+        val frozen = GmailRules().freeze(today, ZoneOffset.UTC)
+        assertTrue(frozen.matches(mail(date = "2025-12-01")))
+        assertFalse(frozen.matches(mail(date = "2025-12-01", labels = setOf("CATEGORY_SOCIAL"))))
+        assertFalse(frozen.matches(mail(date = "2025-01-01", labels = setOf("CATEGORY_UPDATES"))))
+        assertTrue(frozen.matches(mail(date = "2024-01-01", labels = setOf("CATEGORY_UPDATES"))))
+    }
+    @Test fun subscriptionsRequireHeaderAndAge() {
+        val frozen = GmailRules(promotions = false, social = false, notifications = false, newsletters = true).freeze(today, ZoneOffset.UTC)
+        assertFalse(frozen.matches(mail()))
+        assertTrue(frozen.matches(mail(labels = emptySet()).copy(subscriptionHint = true)))
+        assertFalse(frozen.matches(mail(date = "2026-10-01").copy(subscriptionHint = true)))
+        assertTrue(hasSubscriptionHint("list.example", ""))
+        assertTrue(hasSubscriptionHint("", "<mailto:leave@example.com>"))
+        assertFalse(hasSubscriptionHint("", " "))
+    }
+    @Test fun largeMessagesNeedBothAgeAndSize() {
+        val frozen = GmailRules(promotions = false, social = false, notifications = false, largeEnabled = true).freeze(today, ZoneOffset.UTC)
+        assertFalse(frozen.matches(mail().copy(sizeEstimate = 10_000_000)))
+        assertTrue(frozen.matches(mail().copy(sizeEstimate = 10_000_001)))
+        assertFalse(frozen.matches(mail(date = "2026-01-01").copy(sizeEstimate = 20_000_000)))
+    }
+    @Test fun monthEndUsesCalendarMonths() {
+        assertEquals(millis("2024-02-29"), MailAge(1, AgeUnit.MONTHS).cutoff(LocalDate.of(2024, 3, 31), ZoneOffset.UTC))
     }
     private class FakeGateway(val messages: Map<String, GmailMessage>) : GmailGateway {
         val moved = mutableListOf<String>()
